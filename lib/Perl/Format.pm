@@ -3,6 +3,7 @@ package Perl::Format 0.001;
 use strict;
 use warnings;
 
+use PPI::Token::Word;
 use Scalar::Util 'refaddr';
 
 my @rules = (
