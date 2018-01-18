@@ -22,10 +22,21 @@ $foo{_1}
 $foo{'-bar'}
 $foo{-bar}
 
+# Keys that look like builtins are fine.
+
+$foo{'print'}
+$foo{print}
+
 # Leave these ones alone.
 
+$foo{'+bar'}
+$foo{'+bar'}
+
 $foo{'a.b'}
 $foo{'a.b'}
 
 $foo{'1_'}
 $foo{'1_'}
+
+$foo{'24HR'}
+$foo{'24HR'}

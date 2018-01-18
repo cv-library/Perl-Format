@@ -27,9 +27,12 @@ my @rules = (
         sub {
             my $elem = shift;
 
-            $elem->isa('PPI::Token::Quote')
-                && $elem->string =~ /^-?\w+$/a
-                && $elem->string !~ /^-?\d+_[\d_]*$/a
+            return unless $elem->isa('PPI::Token::Quote');
+
+            my $key = $elem->string;
+
+            $key =~ /^-?\w+$/a
+                && do { no strict; no warnings; $key eq eval "($key=>)[0]" }
                 && $elem->parent
                 && $elem->parent->isa('PPI::Statement::Expression')
                 && $elem->parent->parent
