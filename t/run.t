@@ -14,9 +14,6 @@ for (<t/*.pl>) {
 
         my $doc = PPI::Document->new(\$from);
 
-        use Data::Dumper;
-        #warn Dumper $doc;
-
         Perl::Format->run($doc);
 
         is $doc->serialize, $to, "$from → $to";
