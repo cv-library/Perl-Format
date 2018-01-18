@@ -1,7 +1,10 @@
+use strict;
+use warnings;
+
 use List::Util 'pairs';
 use Perl::Format;
 use PPI::Document;
-use Test2::V0;
+use Test::More;
 
 for (<t/*.pl>) {
     chomp( my @tests = grep $_ ne $/ && !/^#/, do { local @ARGV = $_; <> } );
