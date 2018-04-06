@@ -37,7 +37,9 @@ my @rules = (
                 && $elem->parent
                 && $elem->parent->isa('PPI::Statement::Expression')
                 && $elem->parent->parent
-                && $elem->parent->parent->isa('PPI::Structure::Subscript');
+                && $elem->parent->parent->isa('PPI::Structure::Subscript')
+                && !$elem->snext_sibling
+                && !$elem->sprevious_sibling;
         },
         sub {
             my $addr = refaddr( my $elem = shift );

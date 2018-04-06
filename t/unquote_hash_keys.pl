@@ -40,3 +40,12 @@ $foo{'1_'}
 
 $foo{'24HR'}
 $foo{'24HR'}
+
+$foo{ 'bar' . baz() }
+$foo{ 'bar' . baz() }
+
+@foo{ 'bar', 'baz' }
+@foo{ 'bar', 'baz' }
+
+@$foo{ 'bar', 'baz' }
+@$foo{ 'bar', 'baz' }
