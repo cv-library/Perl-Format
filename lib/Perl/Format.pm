@@ -58,6 +58,11 @@ my @rules = (
         },
         sub { $_[0]{content} =~ s/^m// },
     ],
+    # "foo" → 'foo'
+    [
+        sub { $_[0]->isa('PPI::Token::Quote::Double') },
+        sub { $_[0]->simplify },
+    ],
 );
 
 sub run {
