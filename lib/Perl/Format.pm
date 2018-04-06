@@ -3,6 +3,7 @@ package Perl::Format 0.001;
 use strict;
 use warnings;
 
+use PPI::Token::Quote::Double;
 use PPI::Token::Word;
 use Scalar::Util 'refaddr';
 
@@ -61,7 +62,7 @@ my @rules = (
     # "foo" → 'foo'
     [
         sub { $_[0]->isa('PPI::Token::Quote::Double') },
-        sub { $_[0]->simplify },
+        \&PPI::Token::Quote::Double::simplify,
     ],
 );
 
