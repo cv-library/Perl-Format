@@ -66,6 +66,19 @@ my @rules = (
         sub { $_[0]->isa('PPI::Token::Quote::Double') },
         \&PPI::Token::Quote::Double::simplify,
     ],
+    # foo( 1, 2, 3, ) → foo( 1, 2, 3 )
+    [
+        sub {
+            $_[0]->isa('PPI::Structure::List')
+                && @{ $_[0]{children} } > 1
+                && $_[0]{children}[-1]->isa('PPI::Token::Whitespace')
+                && $_[0]{children}[-1]{content} eq ' '
+                && $_[0]{children}[-2]->isa('PPI::Statement::Expression')
+                && $_[0]{children}[-2]{children}[-1]->isa('PPI::Token::Operator')
+                && $_[0]{children}[-2]{children}[-1]{content} eq ',';
+        },
+        sub { $#{ $_[0]{children}[-2]{children} }-- },
+    ]
 );
 
 sub run {
