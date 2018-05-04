@@ -92,39 +92,57 @@ my @rules = (
                 && $_[0]{children}[-2]{children}[-1]{content} eq ',';
         },
         sub { $#{ $_[0]{children}[-2]{children} }-- },
-    ]
+    ],
 );
 
 sub run {
     my ( $class, $doc ) = @_;
 
-    my $changed;
+    my ( $changed, $time_local );
 
     for (@rules) {
         my ( $find, $rewrite ) = @$_;
 
-        my ( @queue, @elems ) = $doc;
+        my ( @q, @rewrite ) = $doc;
 
-        while ( my $elem = shift @queue ) {
-                push @elems, $elem if $find->($elem);
+        while ( my $e = shift @q ) {
+            push @rewrite, $e if $find->($e);
 
-                # Skip if the element doesn't have any children.
-                next unless $elem->isa('PPI::Node');
+            $time_local = $e
+                if $e->isa('PPI::Statement::Include')
+                && $e->{children}[0]{content} eq 'use'
+                && $e->{children}[2]{content} eq 'Time::Local';
 
-                # Add the children to the head of the queue.
-                if ( $elem->isa('PPI::Structure') ) {
-                        unshift @queue,
-                            $elem->finish || (),
-                            $elem->children,
-                            $elem->start || ();
-                } else {
-                        unshift @queue, $elem->children;
-                }
+            undef $time_local
+                if $time_local
+                && $e->isa('PPI::Token::Word')
+                && $e->{content} =~ /^(Time::Local::)?time(gm|local)?(_nocheck)?$/n;
+
+            # Skip if the element doesn't have any children.
+            next unless $e->isa('PPI::Node');
+
+            # Add the children to the head of the queue.
+            if ( $e->isa('PPI::Structure') ) {
+                unshift @q, $e->finish || (), $e->children, $e->start || ();
+            } else {
+                unshift @q, $e->children;
+            }
         }
 
-        $changed ||= @elems;
+        $changed ||= @rewrite;
 
-        $rewrite->($_) for @elems;
+        $rewrite->($_) for @rewrite;
+    }
+
+    if ($time_local) {
+        my $addr = refaddr $time_local;
+
+        my $siblings = $time_local->parent->{children};
+
+        # Remove the use line from the parent's children array.
+        @$siblings = grep $addr != refaddr $_, @$siblings;
+
+        $changed = 1;
     }
 
     $changed;

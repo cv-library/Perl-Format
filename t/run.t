@@ -17,7 +17,7 @@ for (<t/*.pl>) {
 
         Perl::Format->run($doc);
 
-        is $doc->serialize, $to, "$from → $to";
+        is $doc->serialize =~ s/^\s+|\s+$//gr, $to, "$from → $to";
     }
 }
 
