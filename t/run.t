@@ -7,7 +7,8 @@ use PPI::Document;
 use Test::More;
 
 for (<t/*.pl>) {
-    chomp( my @tests = grep $_ ne $/ && !/^#/, do { local @ARGV = $_; <> } );
+    my @tests = map s/^\s+|\s+$//gr, split /^#.*$/m,
+        do { local ( @ARGV, $/ ) = $_; <> };
 
     for ( pairs @tests ) {
         my ( $from, $to ) = @$_;

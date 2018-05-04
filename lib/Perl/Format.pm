@@ -47,18 +47,26 @@ my @rules = (
                 for grep $addr == refaddr $_, @{ $elem->parent->{children} };
         },
     ],
-    # m/abc/ → /abc/
+    # m!abc!s → /abc/s
     [
         sub {
-            my $elem = shift;
-
             no warnings 'uninitialized';
 
-            $elem->isa('PPI::Token::Regexp::Match')
-                && $elem->{operator} eq 'm'
-                && $elem->{separator} eq '/';
+            $_[0]->isa('PPI::Token::Regexp::Match')
+                && $_[0]{operator} eq 'm'
+                && !$_[0]{braced}
+                && ( $_[0]{separator} eq '/' || $_[0]{content} !~ m(/) );
         },
-        sub { $_[0]{content} =~ s/^m// },
+        sub {
+            my ( $pos, $size ) = @{ $_[0]{sections}[0] }{qw/position size/};
+
+            # Replace delimiters.
+            substr $_[0]{content}, $pos - 1,     1, '/';
+            substr $_[0]{content}, $pos + $size, 1, '/';
+
+            # Chop upto the first delimiter.
+            substr $_[0]{content}, 0, $pos - 1, '';
+        },
     ],
     # "foo" → 'foo'
     [
