@@ -6,6 +6,23 @@ use warnings;
 use PPI::Token::Word;
 use Scalar::Util 'refaddr';
 
+my %scalar_ops;
+@scalar_ops{qw{* x + - . == != += -= *=}} = ();
+
+# Removes the element and any adjacent right whitespace.
+my $delete_self = sub {
+    my $siblings = ( my $elem = shift )->parent->{children};
+
+    my %skip = ( refaddr $elem => undef );
+
+    $skip{ refaddr $elem } = undef
+        if ( $elem = $elem->next_sibling )
+        && $elem->isa('PPI::Token::Whitespace');
+
+    # Remove the elements from the parent's children array.
+    @$siblings = grep !exists $skip{ refaddr $_ }, @$siblings;
+};
+
 my @rules = (
     # $foo{bar}->[123]->() → $foo{bar}[123]()
     [
@@ -13,14 +30,7 @@ my @rules = (
             exists $_[0]{_dereference}
                 && $_[0]->previous_sibling->isa('PPI::Structure::Subscript');
         },
-        sub {
-            my $addr = refaddr( my $elem = shift );
-
-            my $siblings = $elem->parent->{children};
-
-            # Remove the arrow from the parent's children array.
-            @$siblings = grep $addr != refaddr $_, @$siblings;
-        },
+        $delete_self,
     ],
     # $foo{'bar'} → $foo{bar}
     [
@@ -92,6 +102,19 @@ my @rules = (
                 && $_[0]{children}[-2]{children}[-1]{content} eq ',';
         },
         sub { $#{ $_[0]{children}[-2]{children} }-- },
+    ],
+    # 'foo' x/+/-/. scalar @bar → 'foo' x/+/-/. @bar
+    [
+        sub {
+            my $elem = shift;
+
+               $elem->isa('PPI::Token::Word')
+            && $elem->{content} eq 'scalar'
+            && ( $elem = $elem->sprevious_sibling )
+            && $elem->isa('PPI::Token::Operator')
+            && exists $scalar_ops{ $elem->{content} };
+        },
+        $delete_self,
     ],
 );
 
