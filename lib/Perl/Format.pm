@@ -10,7 +10,7 @@ my %scalar_ops;
 @scalar_ops{qw{* x + - . == != += -= *=}} = ();
 
 # Removes the element and any adjacent right whitespace.
-my $delete_self = sub {
+my $delete = sub {
     my $siblings = ( my $elem = shift )->parent->{children};
 
     my %skip = ( refaddr $elem => undef );
@@ -30,7 +30,7 @@ my @rules = (
             exists $_[0]{_dereference}
                 && $_[0]->previous_sibling->isa('PPI::Structure::Subscript');
         },
-        $delete_self,
+        $delete,
     ],
     # $foo{'bar'} → $foo{bar}
     [
@@ -114,7 +114,23 @@ my @rules = (
             && $elem->isa('PPI::Token::Operator')
             && exists $scalar_ops{ $elem->{content} };
         },
-        $delete_self,
+        $delete,
+    ],
+    # $d->last_insert_id( undef, undef, undef, undef ) → $d->last_insert_id
+    [
+        sub {
+            my $elem = shift;
+
+               $elem->isa('PPI::Token::Word')
+            && $elem->{content} eq 'last_insert_id'
+            && ( $elem = $elem->next_sibling )
+            && $elem->isa('PPI::Structure::List')
+            # FIXME String matching is bloody hacky.
+            && ( $elem->content eq '( (undef) x 4 )'
+              || $elem->content eq '( undef, undef, undef, undef )'
+            );
+        },
+        sub { $delete->( $_[0]->next_sibling ) },
     ],
 );
 
