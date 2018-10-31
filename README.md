@@ -1,4 +1,4 @@
-# Perl-Format
+# Perl-Format [![Travis](https://travis-ci.org/cv-library/Perl-Format.svg)](https://travis-ci.org/cv-library/Perl-Format) [![Coveralls](https://coveralls.io/repos/github/cv-library/Perl-Format/badge.svg)](https://coveralls.io/github/cv-library/Perl-Format)
 
 ## Prefer Slash Regex Delimiters
 
