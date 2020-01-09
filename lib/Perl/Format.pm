@@ -25,23 +25,21 @@ my $delete = sub {
 
 my @rules = (
     # $foo{bar}->[123]->() → $foo{bar}[123]()
-    [
-        sub {
+    [   sub {
             exists $_[0]{_dereference}
                 && $_[0]->previous_sibling->isa('PPI::Structure::Subscript');
         },
         $delete,
     ],
     # $foo{'bar'} → $foo{bar}
-    [
-        sub {
+    [   sub {
             my $elem = shift;
 
             return unless $elem->isa('PPI::Token::Quote');
 
             my $key = $elem->string;
 
-            $key =~ /^-?\w+$/a
+            return $key =~ /^-?\w+$/a
                 && do { no strict; no warnings; $key eq eval "($key=>)[0]" }
                 && $elem->parent
                 && $elem->parent->isa('PPI::Statement::Expression')
@@ -58,12 +56,11 @@ my @rules = (
         },
     ],
     # =~ qr/abc/ → =~ m/abc/
-    [
-        sub {
+    [   sub {
             my $elem = shift;
 
-            $elem->isa('PPI::Token::QuoteLike::Regexp')
-                && ($elem = $elem->sprevious_sibling)
+            return $elem->isa('PPI::Token::QuoteLike::Regexp')
+                && ( $elem = $elem->sprevious_sibling )
                 && $elem->isa('PPI::Token::Operator')
                 && $elem->{content} =~ /^[!=~]~$/;
         },
@@ -75,11 +72,10 @@ my @rules = (
         },
     ],
     # m!abc!s → /abc/s
-    [
-        sub {
+    [   sub {
             no warnings 'uninitialized';
 
-            $_[0]->isa('PPI::Token::Regexp::Match')
+            return $_[0]->isa('PPI::Token::Regexp::Match')
                 && $_[0]{operator} eq 'm'
                 && !$_[0]{braced}
                 && ( $_[0]{separator} eq '/' || $_[0]{content} !~ m(/) );
@@ -88,7 +84,7 @@ my @rules = (
             my ( $pos, $size ) = @{ $_[0]{sections}[0] }{qw/position size/};
 
             # Replace delimiters.
-            substr $_[0]{content}, $pos - 1,     1, '/';
+            substr $_[0]{content}, $pos - 1, 1, '/';
             substr $_[0]{content}, $pos + $size, 1, '/';
 
             # Chop upto the first delimiter.
@@ -96,10 +92,9 @@ my @rules = (
         },
     ],
     # "foo" → 'foo'
-    [
-        sub {
-            $_[0]->isa('PPI::Token::Quote::Double')
-                && $_[0]{content} !~ /[\\\$\@']/
+    [   sub {
+            return $_[0]->isa('PPI::Token::Quote::Double')
+                && $_[0]{content} !~ /[\\\$\@']/;
         },
         sub {
             $_[0]{content} = "'" . substr( $_[0]{content}, 1, -1 ) . "'";
@@ -108,9 +103,8 @@ my @rules = (
         },
     ],
     # foo( 1, 2, 3, ) → foo( 1, 2, 3 )
-    [
-        sub {
-            $_[0]->isa('PPI::Structure::List')
+    [   sub {
+            return $_[0]->isa('PPI::Structure::List')
                 && @{ $_[0]{children} } > 1
                 && $_[0]{children}[-1]->isa('PPI::Token::Whitespace')
                 && $_[0]{children}[-1]{content} eq ' '
@@ -121,31 +115,28 @@ my @rules = (
         sub { $#{ $_[0]{children}[-2]{children} }-- },
     ],
     # 'foo' x/+/-/. scalar @bar → 'foo' x/+/-/. @bar
-    [
-        sub {
+    [   sub {
             my $elem = shift;
 
-               $elem->isa('PPI::Token::Word')
-            && $elem->{content} eq 'scalar'
-            && ( $elem = $elem->sprevious_sibling )
-            && $elem->isa('PPI::Token::Operator')
-            && exists $scalar_ops{ $elem->{content} };
+            return $elem->isa('PPI::Token::Word')
+                && $elem->{content} eq 'scalar'
+                && ( $elem = $elem->sprevious_sibling )
+                && $elem->isa('PPI::Token::Operator')
+                && exists $scalar_ops{ $elem->{content} };
         },
         $delete,
     ],
     # $d->last_insert_id( undef, undef, undef, undef ) → $d->last_insert_id
-    [
-        sub {
+    [   sub {
             my $elem = shift;
 
-               $elem->isa('PPI::Token::Word')
-            && $elem->{content} eq 'last_insert_id'
-            && ( $elem = $elem->next_sibling )
-            && $elem->isa('PPI::Structure::List')
-            # FIXME String matching is bloody hacky.
-            && ( $elem->content eq '( (undef) x 4 )'
-              || $elem->content eq '( undef, undef, undef, undef )'
-            );
+            return $elem->isa('PPI::Token::Word')
+                && $elem->{content} eq 'last_insert_id'
+                && ( $elem = $elem->next_sibling )
+                && $elem->isa('PPI::Structure::List')
+                # FIXME String matching is bloody hacky.
+                && ( $elem->content eq '( (undef) x 4 )'
+                || $elem->content eq '( undef, undef, undef, undef )' );
         },
         sub { $delete->( $_[0]->next_sibling ) },
     ],
@@ -180,7 +171,8 @@ sub run {
             # Add the children to the head of the queue.
             if ( $e->isa('PPI::Structure') ) {
                 unshift @q, $e->finish || (), $e->children, $e->start || ();
-            } else {
+            }
+            else {
                 unshift @q, $e->children;
             }
         }
