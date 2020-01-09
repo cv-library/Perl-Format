@@ -57,6 +57,23 @@ my @rules = (
                 for grep $addr == refaddr $_, @{ $elem->parent->{children} };
         },
     ],
+    # =~ qr/abc/ → =~ m/abc/
+    [
+        sub {
+            my $elem = shift;
+
+            $elem->isa('PPI::Token::QuoteLike::Regexp')
+                && ($elem = $elem->sprevious_sibling)
+                && $elem->isa('PPI::Token::Operator')
+                && $elem->{content} =~ /^[!=~]~$/;
+        },
+        sub {
+            $_[0] = bless $_[0], 'PPI::Token::Regexp::Match';
+            $_[0]{content} =~ s/^qr/m/;
+            $_[0]{operator} = 'm';
+            $_[0]{sections}[0]{position}--;
+        },
+    ],
     # m!abc!s → /abc/s
     [
         sub {

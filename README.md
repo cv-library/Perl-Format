@@ -19,6 +19,21 @@ $dbh->last_insert_id;
 $dbh->last_insert_id( $catalog, $schema, $table, $field );
 ```
 
+### redundant_qr
+Replace redundant `qr/.../` with `m/.../`.
+
+#### Before
+```perl
+my $foo = qr/bar/;
+if ( $baz =~ qr/qux/ ) { ... }
+```
+
+#### After
+```perl
+my $foo = qr/bar/;
+if ( $baz =~ /qux/ ) { ... }
+```
+
 ### redundant_scalar
 Remove redundant scalar operators where the expression is already in scalar context.
 
