@@ -1,7 +1,9 @@
 package Perl::Format 0.001;
 
+use feature 'signatures';
 use strict;
 use warnings;
+no warnings 'experimental';
 
 use PPI::Token::Word;
 use Scalar::Util 'refaddr';
@@ -10,14 +12,13 @@ my %scalar_ops;
 @scalar_ops{qw{* x + - . == != += -= *=}} = ();
 
 # Removes the element and any adjacent right whitespace.
-my $delete = sub {
-    my $siblings = ( my $elem = shift )->parent->{children};
+my $delete = sub ($e) {
+    my $siblings = $e->parent->{children};
 
-    my %skip = ( refaddr $elem => undef );
+    my %skip = ( refaddr $e => undef );
 
-    $skip{ refaddr $elem } = undef
-        if ( $elem = $elem->next_sibling )
-        && $elem->isa('PPI::Token::Whitespace');
+    $skip{ refaddr $e } = undef
+        if ( $e = $e->next_sibling ) && $e->isa('PPI::Token::Whitespace');
 
     # Remove the elements from the parent's children array.
     @$siblings = grep !exists $skip{ refaddr $_ }, @$siblings;
@@ -25,126 +26,116 @@ my $delete = sub {
 
 my @rules = (
     # $foo{bar}->[123]->() → $foo{bar}[123]()
-    [   sub {
-            exists $_[0]{_dereference}
-                && $_[0]->previous_sibling->isa('PPI::Structure::Subscript');
+    [   sub ($e) {
+            exists $e->{_dereference}
+                && $e->previous_sibling->isa('PPI::Structure::Subscript');
         },
         $delete,
     ],
     # $foo{'bar'} → $foo{bar}
-    [   sub {
-            my $elem = shift;
+    [   sub ($e) {
+            return unless $e->isa('PPI::Token::Quote');
 
-            return unless $elem->isa('PPI::Token::Quote');
-
-            my $key = $elem->string;
+            my $key = $e->string;
 
             return $key =~ /^-?\w+$/a
                 && do { no strict; no warnings; $key eq eval "($key=>)[0]" }
-                && $elem->parent
-                && $elem->parent->isa('PPI::Statement::Expression')
-                && $elem->parent->parent
-                && $elem->parent->parent->isa('PPI::Structure::Subscript')
-                && !$elem->snext_sibling
-                && !$elem->sprevious_sibling;
+                && $e->parent
+                && $e->parent->isa('PPI::Statement::Expression')
+                && $e->parent->parent
+                && $e->parent->parent->isa('PPI::Structure::Subscript')
+                && !$e->snext_sibling
+                && !$e->sprevious_sibling;
         },
-        sub {
-            my $addr = refaddr( my $elem = shift );
+        sub ($e) {
+            my $addr = refaddr $e;
 
-            $_ = PPI::Token::Word->new( $elem->string )
-                for grep $addr == refaddr $_, @{ $elem->parent->{children} };
+            $_ = PPI::Token::Word->new( $e->string )
+                for grep $addr == refaddr $_, @{ $e->parent->{children} };
         },
     ],
     # =~ qr/abc/ → =~ m/abc/
-    [   sub {
-            my $elem = shift;
-
-            return $elem->isa('PPI::Token::QuoteLike::Regexp')
-                && ( $elem = $elem->sprevious_sibling )
-                && $elem->isa('PPI::Token::Operator')
-                && $elem->{content} =~ /^[!=~]~$/;
+    [   sub ($e) {
+            return $e->isa('PPI::Token::QuoteLike::Regexp')
+                && ( $e = $e->sprevious_sibling )
+                && $e->isa('PPI::Token::Operator')
+                && $e->{content} =~ /^[!=~]~$/;
         },
-        sub {
-            $_[0] = bless $_[0], 'PPI::Token::Regexp::Match';
-            $_[0]{content} =~ s/^qr/m/;
-            $_[0]{operator} = 'm';
-            $_[0]{sections}[0]{position}--;
+        sub ($e) {
+            bless $e, 'PPI::Token::Regexp::Match';
+
+            $e->{content} =~ s/^qr/m/;
+            $e->{operator} = 'm';
+            $e->{sections}[0]{position}--;
         },
     ],
     # m!abc!s → /abc/s
-    [   sub {
+    [   sub ($e) {
             no warnings 'uninitialized';
 
-            return $_[0]->isa('PPI::Token::Regexp::Match')
-                && $_[0]{operator} eq 'm'
-                && !$_[0]{braced}
-                && ( $_[0]{separator} eq '/' || $_[0]{content} !~ m(/) );
+            return $e->isa('PPI::Token::Regexp::Match')
+                && $e->{operator} eq 'm'
+                && !$e->{braced}
+                && ( $e->{separator} eq '/' || $e->{content} !~ m(/) );
         },
-        sub {
-            my ( $pos, $size ) = @{ $_[0]{sections}[0] }{qw/position size/};
+        sub ($e) {
+            my ( $pos, $size ) = $e->{sections}[0]->@{qw/position size/};
 
             # Replace delimiters.
-            substr $_[0]{content}, $pos - 1, 1, '/';
-            substr $_[0]{content}, $pos + $size, 1, '/';
+            substr $e->{content}, $pos - 1, 1, '/';
+            substr $e->{content}, $pos + $size, 1, '/';
 
             # Chop upto the first delimiter.
-            substr $_[0]{content}, 0, $pos - 1, '';
+            substr $e->{content}, 0, $pos - 1, '';
         },
     ],
     # "foo" → 'foo'
-    [   sub {
-            return $_[0]->isa('PPI::Token::Quote::Double')
-                && $_[0]{content} !~ /[\\\$\@']/;
+    [   sub ($e) {
+            $e->isa('PPI::Token::Quote::Double') && $e->{content} !~ /[\\\$\@']/;
         },
-        sub {
-            $_[0]{content} = "'" . substr( $_[0]{content}, 1, -1 ) . "'";
-
+        sub ($e) {
             bless $_[0], 'PPI::Token::Quote::Single';
+
+            $e->{content} = "'" . substr( $e->{content}, 1, -1 ) . "'";
         },
     ],
     # foo( 1, 2, 3, ) → foo( 1, 2, 3 )
-    [   sub {
-            return $_[0]->isa('PPI::Structure::List')
-                && @{ $_[0]{children} } > 1
-                && $_[0]{children}[-1]->isa('PPI::Token::Whitespace')
-                && $_[0]{children}[-1]{content} eq ' '
-                && $_[0]{children}[-2]->isa('PPI::Statement::Expression')
-                && $_[0]{children}[-2]{children}[-1]->isa('PPI::Token::Operator')
-                && $_[0]{children}[-2]{children}[-1]{content} eq ',';
+    [   sub ($e) {
+            return $e->isa('PPI::Structure::List')
+                && @{ $e->{children} } > 1
+                && $e->{children}[-1]->isa('PPI::Token::Whitespace')
+                && $e->{children}[-1]{content} eq ' '
+                && $e->{children}[-2]->isa('PPI::Statement::Expression')
+                && $e->{children}[-2]{children}[-1]->isa('PPI::Token::Operator')
+                && $e->{children}[-2]{children}[-1]{content} eq ',';
         },
         sub { $#{ $_[0]{children}[-2]{children} }-- },
     ],
     # 'foo' x/+/-/. scalar @bar → 'foo' x/+/-/. @bar
-    [   sub {
-            my $elem = shift;
-
-            return $elem->isa('PPI::Token::Word')
-                && $elem->{content} eq 'scalar'
-                && ( $elem = $elem->sprevious_sibling )
-                && $elem->isa('PPI::Token::Operator')
-                && exists $scalar_ops{ $elem->{content} };
+    [   sub ($e) {
+            return $e->isa('PPI::Token::Word')
+                && $e->{content} eq 'scalar'
+                && ( $e = $e->sprevious_sibling )
+                && $e->isa('PPI::Token::Operator')
+                && exists $scalar_ops{ $e->{content} };
         },
         $delete,
     ],
     # $d->last_insert_id( undef, undef, undef, undef ) → $d->last_insert_id
-    [   sub {
-            my $elem = shift;
-
-            return $elem->isa('PPI::Token::Word')
-                && $elem->{content} eq 'last_insert_id'
-                && ( $elem = $elem->next_sibling )
-                && $elem->isa('PPI::Structure::List')
+    [   sub ($e) {
+            return $e->isa('PPI::Token::Word')
+                && $e->{content} eq 'last_insert_id'
+                && ( $e = $e->next_sibling )
+                && $e->isa('PPI::Structure::List')
                 # FIXME String matching is bloody hacky.
-                && ( $elem->content eq '( (undef) x 4 )'
-                || $elem->content eq '( undef, undef, undef, undef )' );
+                && ( $e->content eq '( (undef) x 4 )'
+                || $e->content eq '( undef, undef, undef, undef )' );
         },
-        sub { $delete->( $_[0]->next_sibling ) },
+        sub ($e) { $delete->( $e->next_sibling ) },
     ],
 );
 
-sub run {
-    my ( $class, $doc ) = @_;
-
+sub run ( $class, $doc ) {
     my ( $changed, $time_local );
 
     for (@rules) {
